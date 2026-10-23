@@ -33,7 +33,7 @@
 <body>
 <main>
   <h1>🎙 BM Voice</h1>
-  <p class="sub">Keep this window open beside Business Manager. Tap the microphone and say a command. You can see the result in the app.</p>
+  <p class="sub">Leave this small window open at the side and go back to Business Manager. It listens by itself. Speak a command, then pause. The result shows in the app.</p>
 
   <div class="card" id="checks">
     <div class="chk"><span class="dot" id="dSpeech"></span><span id="tSpeech">Checking speech engine...</span></div>
@@ -154,6 +154,8 @@
   };
   window.addEventListener('beforeunload', function () { send('closed', ''); });
   send('ready', '');
+  if (q.get('auto') === '1') { $('keep').checked = true; if (SR) setTimeout(function () { try { start(); } catch (e) { /* needs a tap */ } }, 400); }
+  setInterval(function () { var gone = true; try { gone = !window.opener || window.opener.closed; } catch (e) { } if (gone && listening) { stopAsked = true; try { rec.stop(); } catch (e) { } $('err').textContent = 'The app was closed, so listening stopped.'; } }, 4000);
   setInterval(function () { send('ping', ''); }, 5000);
   var ql=q.get('l'); if (ql==='en-IN'||ql==='en-US') $('lang').value=ql;
 })();
