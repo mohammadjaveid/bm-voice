@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BM Voice - test window</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb; --brand:#0f766e; --ok:#166534; --bad:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111827; --card:#1f2937; --text:#f3f4f6; --muted:#9ca3af; --line:#374151; --brand:#14b8a6; --ok:#4ade80; --bad:#f87171; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,Segoe UI,Roboto,Arial,sans-serif; }
+  main { max-width:520px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:14px; margin:0 0 14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:12px; }
+  .chk { display:flex; gap:8px; align-items:flex-start; font-size:14px; padding:3px 0; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--muted); margin-top:7px; flex:none; }
+  .dot.ok { background:var(--ok); } .dot.bad { background:var(--bad); }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  select, button { font:inherit; }
+  select { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); }
+  #mic { width:100%; padding:18px; font-size:18px; font-weight:600; border:none; border-radius:12px; background:var(--brand); color:#fff; cursor:pointer; }
+  #mic.on { background:var(--bad); }
+  #mic:disabled { opacity:.5; cursor:not-allowed; }
+  #test { padding:9px 14px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--text); cursor:pointer; }
+  #live { min-height:52px; font-size:20px; margin:12px 0; }
+  #live.interim { color:var(--muted); }
+  #log { font-size:13px; max-height:220px; overflow:auto; }
+  #log div { padding:4px 0; border-bottom:1px solid var(--line); }
+  .err { color:var(--bad); font-size:14px; min-height:20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎙 BM Voice - test window</h1>
+  <p class="sub">Keep this window open beside the app. Tap the microphone, say something, and it is sent to the app.</p>
+
+  <div class="card" id="checks">
+    <div class="chk"><span class="dot" id="dSpeech"></span><span id="tSpeech">Checking speech engine...</span></div>
+    <div class="chk"><span class="dot" id="dOpener"></span><span id="tOpener">Checking link to the app...</span></div>
+    <div class="chk"><span class="dot" id="dMic"></span><span id="tMic">Microphone: not asked yet (the browser asks when you first tap the mic)</span></div>
+  </div>
+
+  <div class="row">
+    <label for="lang">Language</label>
+    <select id="lang">
+      <option value="en-IN">English (India)</option>
+      <option value="hi-IN">Hindi</option>
+      <option value="en-US">English (US)</option>
+      <option value="gu-IN">Gujarati</option>
+      <option value="mr-IN">Marathi</option>
+    </select>
+    <label><input type="checkbox" id="keep"> Keep listening</label>
+  </div>
+
+  <button id="mic" type="button">🎤 Tap to speak</button>
+  <div id="live" class="interim">&nbsp;</div>
+  <div class="err" id="err"></div>
+
+  <div class="row"><button id="test" type="button">Send a test message (no microphone)</button></div>
+
+  <div class="card"><strong>What was sent to the app</strong><div id="log"><div style="color:var(--muted)">Nothing yet.</div></div></div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var q = new URLSearchParams(location.search);
+  var appOrigin = q.get('o') || '';
+  // Only the Apps Script page origin may receive what is spoken. Anything else is refused.
+  // Apps Script runs pages in a sandbox whose origin is the text "null" (a browser can only reply to that with "*").
+  // Safe here: a reply can only ever go to the one window that opened this page.
+  var originOk = appOrigin === 'null' || /^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/.test(appOrigin);
+  var target = appOrigin === 'null' ? '*' : appOrigin;
+  var hasOpener = false;
+  try { hasOpener = !!(window.opener && !window.opener.closed); } catch (e) { hasOpener = false; }
+
+  function check(dot, txt, ok, text) { $(dot).className = 'dot ' + (ok ? 'ok' : 'bad'); $(txt).textContent = text; }
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SR) check('dSpeech', 'tSpeech', true, 'Speech engine: available in this browser');
+  else { check('dSpeech', 'tSpeech', false, 'Speech engine: NOT available. Use Chrome on a computer or Android phone.'); $('mic').disabled = true; }
+
+  if (hasOpener && originOk) check('dOpener', 'tOpener', true, 'Linked to the app (' + appOrigin + ')');
+  else if (!hasOpener) check('dOpener', 'tOpener', false, 'Not linked to the app: this window was not opened from the app (or the browser cut the link).');
+  else check('dOpener', 'tOpener', false, 'Refused: the app address "' + (appOrigin || 'none') + '" is not an Apps Script address.');
+
+  var logBox = $('log'), logFirst = true;
+  function log(text) {
+    if (logFirst) { logBox.innerHTML = ''; logFirst = false; }
+    var d = document.createElement('div');
+    d.textContent = new Date().toLocaleTimeString() + '  ' + text;
+    logBox.insertBefore(d, logBox.firstChild);
+  }
+
+  function send(type, text, extra) {
+    if (!hasOpener || !originOk) { log('NOT SENT (no link to the app): ' + text); return false; }
+    try {
+      window.opener.postMessage(Object.assign({ bm: 'voice', v: 1, type: type, text: text, at: Date.now() }, extra || {}), target);
+      if (text) log('Sent to app: ' + text);
+      return true;
+    } catch (e) { log('Could not send: ' + e.message); return false; }
+  }
+
+  $('test').onclick = function () { send('test', 'add prod zero zero one to the cart quantity two'); };
+
+  var rec = null, listening = false, stopAsked = false;
+  function ui() {
+    $('mic').className = listening ? 'on' : '';
+    $('mic').textContent = listening ? '⏹ Listening... tap to stop' : '🎤 Tap to speak';
+  }
+  var ERR = {
+    'not-allowed': 'The microphone is blocked. Click the lock icon in the address bar, allow the microphone for this site, then tap the mic again.',
+    'service-not-allowed': 'The microphone is blocked for this site. Click the lock icon in the address bar and allow it.',
+    'no-speech': 'Nothing was heard. Tap the mic and speak a little closer.',
+    'audio-capture': 'No microphone was found on this device.',
+    'network': 'The speech service could not be reached. Check the internet connection.',
+    'aborted': ''
+  };
+  function start() {
+    $('err').textContent = '';
+    stopAsked = false;
+    rec = new SR();
+    rec.lang = $('lang').value;
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 3;
+    rec.onstart = function () { listening = true; ui(); check('dMic', 'tMic', true, 'Microphone: working (listening)'); };
+    rec.onerror = function (e) {
+      var m = ERR[e.error];
+      if (m === undefined) m = 'Speech error: ' + e.error;
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') { check('dMic', 'tMic', false, 'Microphone: ' + e.error); stopAsked = true; }
+      $('err').textContent = m;
+    };
+    rec.onresult = function (e) {
+      var interim = '', fin = '', alts = [];
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        var r = e.results[i];
+        if (r.isFinal) {
+          fin += r[0].transcript;
+          for (var k = 0; k < r.length; k++) alts.push({ t: r[k].transcript, c: r[k].confidence });
+        } else interim += r[0].transcript;
+      }
+      $('live').className = fin ? '' : 'interim';
+      $('live').textContent = fin || interim || ' ';
+      if (fin.trim()) send('utterance', fin.trim(), { lang: $('lang').value, alts: alts });
+    };
+    rec.onend = function () {
+      listening = false; ui();
+      if ($('keep').checked && !stopAsked) setTimeout(function () { try { start(); } catch (e) { /* already running */ } }, 250);
+    };
+    try { rec.start(); } catch (e) { $('err').textContent = 'Could not start: ' + e.message; }
+  }
+  $('mic').onclick = function () {
+    if (listening) { stopAsked = true; try { rec.stop(); } catch (e) { /* ignore */ } return; }
+    start();
+  };
+  window.addEventListener('beforeunload', function () { send('closed', ''); });
+  send('ready', '');
+})();
+</script>
+</body>
+</html>
