@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BM Voice - test window</title>
+<title>BM Voice</title>
 <style>
   :root { --bg:#f7f7f5; --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb; --brand:#0f766e; --ok:#166534; --bad:#b91c1c; }
   @media (prefers-color-scheme: dark) { :root { --bg:#111827; --card:#1f2937; --text:#f3f4f6; --muted:#9ca3af; --line:#374151; --brand:#14b8a6; --ok:#4ade80; --bad:#f87171; } }
@@ -32,8 +32,8 @@
 </head>
 <body>
 <main>
-  <h1>🎙 BM Voice - test window</h1>
-  <p class="sub">Keep this window open beside the app. Tap the microphone, say something, and it is sent to the app.</p>
+  <h1>🎙 BM Voice</h1>
+  <p class="sub">Keep this window open beside Business Manager. Tap the microphone and say a command. You can see the result in the app.</p>
 
   <div class="card" id="checks">
     <div class="chk"><span class="dot" id="dSpeech"></span><span id="tSpeech">Checking speech engine...</span></div>
@@ -45,11 +45,7 @@
     <label for="lang">Language</label>
     <select id="lang">
       <option value="en-IN">English (India)</option>
-      <option value="hi-IN">Hindi</option>
-      <option value="en-US">English (US)</option>
-      <option value="gu-IN">Gujarati</option>
-      <option value="mr-IN">Marathi</option>
-    </select>
+      </select>
     <label><input type="checkbox" id="keep"> Keep listening</label>
   </div>
 
@@ -79,10 +75,10 @@
   function check(dot, txt, ok, text) { $(dot).className = 'dot ' + (ok ? 'ok' : 'bad'); $(txt).textContent = text; }
 
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (SR) check('dSpeech', 'tSpeech', true, 'Speech engine: available in this browser');
+  if (SR) check('dSpeech', 'tSpeech', true, 'Speech: ready');
   else { check('dSpeech', 'tSpeech', false, 'Speech engine: NOT available. Use Chrome on a computer or Android phone.'); $('mic').disabled = true; }
 
-  if (hasOpener && originOk) check('dOpener', 'tOpener', true, 'Linked to the app (' + appOrigin + ')');
+  if (hasOpener && originOk) check('dOpener', 'tOpener', true, 'Connected to Business Manager');
   else if (!hasOpener) check('dOpener', 'tOpener', false, 'Not linked to the app: this window was not opened from the app (or the browser cut the link).');
   else check('dOpener', 'tOpener', false, 'Refused: the app address "' + (appOrigin || 'none') + '" is not an Apps Script address.');
 
@@ -98,7 +94,7 @@
     if (!hasOpener || !originOk) { log('NOT SENT (no link to the app): ' + text); return false; }
     try {
       window.opener.postMessage(Object.assign({ bm: 'voice', v: 1, type: type, text: text, at: Date.now() }, extra || {}), target);
-      if (text) log('Sent to app: ' + text);
+      if (text && type!=='ping') log('Sent to app: ' + text);
       return true;
     } catch (e) { log('Could not send: ' + e.message); return false; }
   }
@@ -158,6 +154,8 @@
   };
   window.addEventListener('beforeunload', function () { send('closed', ''); });
   send('ready', '');
+  setInterval(function () { send('ping', ''); }, 5000);
+  var ql=q.get('l'); if (ql==='en-IN'||ql==='en-US') $('lang').value=ql;
 })();
 </script>
 </body>
